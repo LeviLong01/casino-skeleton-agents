@@ -1,17 +1,21 @@
 """Test Writer Agent.
 
-Trigger: an actual git commit, via githooks/post-commit -- not a timer. That
-hook fires (detached, so `git commit` isn't blocked on an LLM call) for
-every commit in the repo, human or agent-made, and runs this module
-standalone (`python3 -m agents.test_writer_agent`). tick() itself is still
-gated on `git rev-parse HEAD` against the last commit it checked, both as a
-defensive no-op if invoked twice for the same commit and to keep the
-underlying check (an AST scan of casino/*.py for a public class/function
-whose name never appears, as a whole word, anywhere under tests/) cheap and
-explicit about what changed. That scan is deterministic -- no LLM call is
+Trigger: the repo's HEAD commit, checked on the orchestrator's poll (not on
+a fixed schedule of its own): tick() compares `git rev-parse HEAD` against
+the last commit it checked and does nothing -- no scan, no log line -- if
+nothing has been committed since, by a human or either other agent. Only
+when HEAD has moved does it run the actual check: an AST scan of casino/*.py
+for a public class/function whose name never appears, as a whole word,
+anywhere under tests/. That scan is deterministic and free -- no LLM call is
 spent just to detect a gap. When a gap spans multiple modules, only one is
-handled per invocation; on success this agent's own commit re-fires the
-hook, chaining through the rest.
+handled per tick; its own successful commit changes HEAD again, so the next
+poll picks up the rest.
+
+(A real git post-commit hook was tried here instead of polling -- it worked,
+but a still-unexplained bug made hook-triggered invocations log every action
+twice, always with the *same* PID, which rules out a simple double-spawn.
+Not worth chasing further right now, so this reverted to polling; the
+commit-sha gate above is what keeps polling cheap and quiet when idle.)
 
 Action: a Strands agent with file_read/file_write/editor/shell tools is
 handed the gap and the module's source and asked to write pytest tests for
