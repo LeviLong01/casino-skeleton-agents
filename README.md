@@ -94,34 +94,6 @@ whether the orchestrator is up. It's deliberately minimal (poll a JSON endpoint)
 easy base to grow into a real UI later -- push instead of poll, an MLflow trace/metric panel
 alongside the log -- without changing where the data comes from.
 
-**Evaluation:** `python3 -m agents.evaluate` runs `mlflow.genai.evaluate()` in two passes.
-The first applies two MLflow built-in LLM judges across *all three* agents' traces:
-`RelevanceToQuery` (does each call's output actually address what it was asked -- scored
-11/12, 0.92) and `ToolCallEfficiency` (are there redundant/duplicate tool calls -- scored
-10/12, 0.83; every trace turned out to have at least one `TOOL`-type span, even the plain
-structured-output calls, because Strands implements `structured_output_model` as a
-synthetic tool call under the hood, so the filter meant to narrow this to "real" tool-using
-calls ended up keeping the full set). Both judges ran as `anthropic:/claude-sonnet-5`; one
-internal MLflow utility (extracting the tool list from a trace) silently falls back to
-OpenAI regardless and logs a warning without `OPENAI_API_KEY` set, so `ToolCallEfficiency`
-is likely degraded rather than fully blind -- a real, currently-undiagnosed limitation
-worth flagging rather than hiding.
-
-The second pass is domain-specific to the Anomaly Detection Agent's incident reports, with
-two code-based scorers (no extra LLM-judge calls): `fixture_correctly_identified` checks
-that when the anomaly is the known `aggressive_20` stress-test fixture, the report's
-`likely_cause` actually says so rather than describing an unexplained defect;
-`evidence_cites_numbers` checks the `evidence` field cites real breached percentages
-instead of vague prose. Run against the traces collected during development, both scored
-7/8 (0.875) -- the one failure on each was the same leftover trace from manual smoke-testing
-this exact scorer, not a real agent output. Worth noting: the first version of
-`fixture_correctly_identified` had its own bug -- it substring-matched "aggressive_20"
-against the *whole* prompt, which always includes the full text of `strategies.py` (and
-therefore that string) regardless of which pairing actually triggered the investigation, so
-it flagged a genuinely correct basic_17 report as a failure. Fixed by matching the specific
-"strategy pairing X vs Y" line instead of the whole prompt -- a reminder that the evaluator
-needs the same scrutiny as the thing it's evaluating.
-
 **To run it:** `ANTHROPIC_API_KEY` must be set (`.env` in the repo root works), then:
 
 ```
