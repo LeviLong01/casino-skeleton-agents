@@ -86,7 +86,29 @@ to a local SQLite store (`mlflow.db`, gitignored); view it with:
 mlflow ui --backend-store-uri sqlite:///mlflow.db
 ```
 
-then open the `casino-agent-layer` experiment.
+then open the `casino-agent-layer` experiment. `python3 -m agents.dashboard` (http://127.0.0.1:8765)
+gives a lighter-weight live view of the same underlying data -- a stdlib-only web page that
+polls `agents/activity.log`, parsed into color-coded, per-agent events with running
+summary counts. It only reads the log, so it's safe to run at any time regardless of
+whether the orchestrator is up. It's deliberately minimal (poll a JSON endpoint) so it's an
+easy base to grow into a real UI later -- push instead of poll, an MLflow trace/metric panel
+alongside the log -- without changing where the data comes from.
+
+**Evaluation:** `python3 -m agents.evaluate` runs `mlflow.genai.evaluate()` against the
+Anomaly Detection Agent's incident-report traces already recorded in MLflow, with two
+code-based scorers (no extra LLM-judge calls): `fixture_correctly_identified` checks that
+when the anomaly is the known `aggressive_20` stress-test fixture, the report's
+`likely_cause` actually says so rather than describing an unexplained defect;
+`evidence_cites_numbers` checks the `evidence` field cites real breached percentages
+instead of vague prose. Run against the traces collected during development, both scored
+5/6 (0.83) -- the one failure on each was the same leftover trace from manual smoke-testing
+this exact scorer, not a real agent output. Worth noting: the first version of
+`fixture_correctly_identified` had its own bug -- it substring-matched "aggressive_20"
+against the *whole* prompt, which always includes the full text of `strategies.py` (and
+therefore that string) regardless of which pairing actually triggered the investigation, so
+it flagged a genuinely correct basic_17 report as a failure. Fixed by matching the specific
+"strategy pairing X vs Y" line instead of the whole prompt -- a reminder that the evaluator
+needs the same scrutiny as the thing it's evaluating.
 
 **To run it:** `ANTHROPIC_API_KEY` must be set (`.env` in the repo root works), then:
 
