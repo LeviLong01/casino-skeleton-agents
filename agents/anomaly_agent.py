@@ -91,6 +91,26 @@ def tick():
     save_state(state)
 
 
+def _log_batch_metrics(pair, n, win, loss, push, bust, breached, a_state):
+    """Log this batch's outcome stats as MLflow metrics, independent of the
+    LLM tracing autolog wires up -- these are the app's own numbers, so the
+    same drift the anomaly agent reacts to is visible as a plotted trend in
+    the MLflow UI, not just as a one-off incident report."""
+    import mlflow
+
+    key = "_vs_".join(p.replace(" ", "_") for p in pair)
+    mlflow.log_metrics(
+        {
+            f"win_rate/{key}": win,
+            f"loss_rate/{key}": loss,
+            f"push_rate/{key}": push,
+            f"bust_rate/{key}": bust,
+            f"breach/{key}": 1.0 if breached else 0.0,
+        },
+        step=a_state["offset"],
+    )
+
+
 def _analyze_batch(pair, rows, a_state):
     n = len(rows)
     bust = sum(1 for r in rows if r["player_value"] > 21) / n
@@ -107,6 +127,8 @@ def _analyze_batch(pair, rows, a_state):
             f"player win rate {win:.1%} outside expected range "
             f"{WIN_RATE_RANGE[0]:.0%}-{WIN_RATE_RANGE[1]:.0%}"
         )
+
+    _log_batch_metrics(pair, n, win, loss, push, bust, bool(breaches), a_state)
 
     if not breaches:
         log(

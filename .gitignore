@@ -8,3 +8,6 @@ outcomes.jsonl
 .idea/
 agents/state/
 agents/activity.log
+mlruns/
+mlartifacts/
+mlflow.db*

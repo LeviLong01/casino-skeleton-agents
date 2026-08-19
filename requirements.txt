@@ -5,3 +5,4 @@ pytest
 pydantic
 strands-agents
 strands-agents-tools
+mlflow

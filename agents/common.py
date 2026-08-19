@@ -156,6 +156,22 @@ def architecture_snapshot():
 # ---- Strands model + callback factory ----
 
 
+def init_mlflow():
+    """Point MLflow at a local file store under the repo and turn on tracing
+    for every Strands Agent call (prompts, completions, latency, token
+    usage, cost, tool calls) with zero code changes in the agents
+    themselves. Safe to call more than once."""
+    import mlflow
+    import mlflow.strands
+
+    mlflow.set_tracking_uri(f"sqlite:///{REPO_ROOT / 'mlflow.db'}")
+    mlflow.set_experiment("casino-agent-layer")
+    mlflow.strands.autolog()
+
+
+init_mlflow()
+
+
 def make_model(max_tokens=4096):
     # claude-sonnet-5 rejects the `temperature` request param outright, so it's
     # deliberately not exposed here -- default sampling only.

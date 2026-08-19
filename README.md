@@ -64,6 +64,21 @@ delegated to a tool call, and an `enforce_scope` guard reverts any file an agent
 outside what it owns before anything is committed. Every tick, whether or not an agent
 acts, is logged to `agents/activity.log` and the console.
 
+**Observability:** `agents/common.py` calls `mlflow.strands.autolog()` on import, so every
+Strands `Agent` call from any of the three agents -- prompts, completions, tool calls,
+latency, token usage, cost -- is traced automatically with no code changes inside the
+agents themselves. Separately, the Anomaly Detection Agent logs the casino's own outcome
+stats (win/loss/push/bust rate per strategy pairing, plus a 0/1 breach flag) as MLflow
+metrics on every batch, not just on a breach, so the same drift the agent reacts to is
+visible as a plotted trend rather than only as one-off incident reports. Everything writes
+to a local SQLite store (`mlflow.db`, gitignored); view it with:
+
+```
+mlflow ui --backend-store-uri sqlite:///mlflow.db
+```
+
+then open the `casino-agent-layer` experiment.
+
 **To run it:** `ANTHROPIC_API_KEY` must be set (`.env` in the repo root works), then:
 
 ```
@@ -86,6 +101,13 @@ heuristic (word-boundary match), not real coverage instrumentation, so it can be
 a symbol name that merely appears in an unrelated test; swapping in `coverage.py` would be
 more precise. The anomaly agent's thresholds are fixed bounds from one calibration run
 rather than a rolling statistical baseline (e.g. Welford's algorithm per strategy pair),
-which would adapt as legitimate new strategies are added. And there's no dependency-update
-agent -- `requirements.txt` still pins `requests==2.6.0`, which is unused dead weight from
-the starter repo, worth flagging or removing if this were in scope.
+which would adapt as legitimate new strategies are added -- I saw this cost it a false
+positive live, flagging ordinary sampling variance on the standard strategy pairing at
+n=50. `enforce_scope` also isn't safe against concurrent writers: it reverts any tracked
+file it doesn't recognize as in-scope, which means a human hand-editing a tracked file
+while the orchestrator is running gets silently reverted too (this happened to me once
+while iterating on this same layer). The fix in both directions is the same -- don't edit
+tracked files while the orchestrator has an in-flight tick -- but a proper lock file would
+make that safe instead of just documented. And there's no dependency-update agent --
+`requirements.txt` still pins `requests==2.6.0`, which is unused dead weight from the
+starter repo, worth flagging or removing if this were in scope.

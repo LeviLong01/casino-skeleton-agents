@@ -14,14 +14,19 @@ Nothing here waits for a human. Start it and walk away:
 """
 import os
 import random
+import subprocess
 import time
+from datetime import datetime, timezone
+
+import mlflow
 
 from casino.monitor import Monitor
 from casino.strategies import AggressivePlayerStrategy, BasicPlayerStrategy, StandardDealerStrategy
 from casino.table import Table
 
 from agents import anomaly_agent, doc_agent, test_writer_agent
-from agents.common import log
+from agents.anomaly_agent import BUST_CEILING, WIN_RATE_RANGE
+from agents.common import MODEL_ID, REPO_ROOT, log
 
 TICK_SECONDS = int(os.environ.get("AGENT_TICK_SECONDS", "15"))
 BATCH_ROUNDS = int(os.environ.get("AGENT_BATCH_ROUNDS", "50"))
@@ -39,17 +44,37 @@ def simulate_batch():
     log("TrafficGenerator", f"simulated {BATCH_ROUNDS} rounds: {player_strategy.name} vs standard_17")
 
 
+def _git_sha():
+    result = subprocess.run(
+        ["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True
+    )
+    return result.stdout.strip() or "unknown"
+
+
 def main():
     log("Orchestrator", f"starting up. tick={TICK_SECONDS}s batch={BATCH_ROUNDS} rounds/tick.")
-    while True:
-        try:
-            simulate_batch()
-            test_writer_agent.tick()
-            doc_agent.tick()
-            anomaly_agent.tick()
-        except Exception as exc:  # keep the layer alive across a single bad tick
-            log("Orchestrator", f"tick failed with {exc!r}; continuing.")
-        time.sleep(TICK_SECONDS)
+    run_name = f"orchestrator-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    with mlflow.start_run(run_name=run_name):
+        mlflow.log_params(
+            {
+                "model_id": MODEL_ID,
+                "tick_seconds": TICK_SECONDS,
+                "batch_rounds": BATCH_ROUNDS,
+                "flawed_strategy_rate": FLAWED_STRATEGY_RATE,
+                "bust_ceiling": BUST_CEILING,
+                "win_rate_range": WIN_RATE_RANGE,
+                "git_sha": _git_sha(),
+            }
+        )
+        while True:
+            try:
+                simulate_batch()
+                test_writer_agent.tick()
+                doc_agent.tick()
+                anomaly_agent.tick()
+            except Exception as exc:  # keep the layer alive across a single bad tick
+                log("Orchestrator", f"tick failed with {exc!r}; continuing.")
+            time.sleep(TICK_SECONDS)
 
 
 if __name__ == "__main__":
