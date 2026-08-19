@@ -1,8 +1,12 @@
 """Test Writer Agent.
 
-Trigger: an AST scan of casino/*.py finds a public class or function whose
-name never appears (as a whole word) anywhere under tests/. That's a
-coverage gap -- deterministic, no LLM call needed to detect it.
+Trigger: the repo's HEAD commit. Every tick this checks `git rev-parse HEAD`
+against the last commit it looked at; if nothing has been committed since,
+it does nothing (no scan, no log spam). If HEAD moved -- by a human, or by
+either of the other two agents -- it runs an AST scan of casino/*.py for a
+public class/function whose name never appears (as a whole word) anywhere
+under tests/. That's a coverage gap, still deterministic and free: no LLM
+call is spent just to detect it.
 
 Action: a Strands agent with file_read/file_write/editor/shell tools is
 handed the gap and the module's source and asked to write pytest tests for
@@ -22,6 +26,7 @@ from agents.common import (
     casino_modules,
     enforce_scope,
     git_commit,
+    git_head_sha,
     load_state,
     log,
     make_model,
@@ -68,11 +73,21 @@ def find_gaps():
 
 def tick():
     state = load_state()
-    tw_state = state.setdefault("test_writer", {"attempts": {}})
+    tw_state = state.setdefault("test_writer", {"attempts": {}, "last_checked_sha": None})
+    current_sha = git_head_sha()
+
+    if current_sha == tw_state.get("last_checked_sha"):
+        return  # no new commit since we last looked; nothing to check
+
     gaps = find_gaps()
 
     if not gaps:
-        log(AGENT_NAME, "coverage scan: every public symbol in casino/ is referenced by a test. No action.")
+        log(
+            AGENT_NAME,
+            f"commit {current_sha[:7]}: every public symbol in casino/ is referenced by a test. No action.",
+        )
+        tw_state["last_checked_sha"] = current_sha
+        save_state(state)
         return
 
     for module_name, missing in gaps.items():
@@ -80,13 +95,16 @@ def tick():
             continue
         _handle_gap(module_name, missing, tw_state)
         save_state(state)
-        return  # one gap per tick keeps a live run easy to follow
+        return  # one gap per tick keeps a live run easy to follow; the
+        # commit this makes on success naturally re-triggers next tick
 
     log(
         AGENT_NAME,
-        f"coverage scan: gaps remain in {sorted(gaps)} but max attempts reached for each; "
-        "skipping until the code changes.",
+        f"commit {current_sha[:7]}: gaps remain in {sorted(gaps)} but max attempts reached for each; "
+        "skipping until the next commit.",
     )
+    tw_state["last_checked_sha"] = current_sha
+    save_state(state)
 
 
 def _handle_gap(module_name, missing, tw_state):

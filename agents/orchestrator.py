@@ -14,7 +14,6 @@ Nothing here waits for a human. Start it and walk away:
 """
 import os
 import random
-import subprocess
 import time
 from datetime import datetime, timezone
 
@@ -26,7 +25,7 @@ from casino.table import Table
 
 from agents import anomaly_agent, doc_agent, test_writer_agent
 from agents.anomaly_agent import BUST_CEILING, WIN_RATE_RANGE
-from agents.common import MODEL_ID, REPO_ROOT, log
+from agents.common import MODEL_ID, git_head_sha, log
 
 TICK_SECONDS = int(os.environ.get("AGENT_TICK_SECONDS", "15"))
 BATCH_ROUNDS = int(os.environ.get("AGENT_BATCH_ROUNDS", "50"))
@@ -44,13 +43,6 @@ def simulate_batch():
     log("TrafficGenerator", f"simulated {BATCH_ROUNDS} rounds: {player_strategy.name} vs standard_17")
 
 
-def _git_sha():
-    result = subprocess.run(
-        ["git", "rev-parse", "--short", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True
-    )
-    return result.stdout.strip() or "unknown"
-
-
 def main():
     log("Orchestrator", f"starting up. tick={TICK_SECONDS}s batch={BATCH_ROUNDS} rounds/tick.")
     run_name = f"orchestrator-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
@@ -63,7 +55,7 @@ def main():
                 "flawed_strategy_rate": FLAWED_STRATEGY_RATE,
                 "bust_ceiling": BUST_CEILING,
                 "win_rate_range": WIN_RATE_RANGE,
-                "git_sha": _git_sha(),
+                "git_sha": git_head_sha()[:7],
             }
         )
         while True:

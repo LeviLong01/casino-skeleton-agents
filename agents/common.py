@@ -61,6 +61,13 @@ def save_state(state: dict):
     STATE_PATH.write_text(json.dumps(state, indent=2, sort_keys=True))
 
 
+def git_head_sha() -> str:
+    result = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, capture_output=True, text=True
+    )
+    return result.stdout.strip()
+
+
 def git_commit(paths, message: str, author_name: str, author_email: str) -> bool:
     """Stage exactly the given paths and commit under a distinct agent
     identity. Returns False (no-op) if there was nothing to commit."""
