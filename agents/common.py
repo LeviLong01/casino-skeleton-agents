@@ -160,6 +160,20 @@ def architecture_snapshot():
     return {p.stem: public_symbols(p) for p in casino_modules()}
 
 
+def agent_layer_modules():
+    """agents/*.py itself -- deliberately separate from casino_modules() so
+    the Test Writer Agent's coverage scan (which only looks at casino/)
+    doesn't start demanding tests for the agent layer's own code. Used only
+    by the Documentation Agent's second, agent-layer-scoped architecture
+    check."""
+    agents_dir = REPO_ROOT / "agents"
+    return sorted(p for p in agents_dir.glob("*.py") if p.name != "__init__.py")
+
+
+def agent_layer_snapshot():
+    return {p.stem: public_symbols(p) for p in agent_layer_modules()}
+
+
 # ---- Strands model + callback factory ----
 
 
