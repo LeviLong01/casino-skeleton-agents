@@ -63,10 +63,12 @@ def tick():
     a_state = state.setdefault("anomaly_agent", {"offset": 0, "last_reported": {}})
     rows, new_offset = _read_new_rows(a_state["offset"])
     a_state["offset"] = new_offset
+    # Persist the offset immediately, before any LLM call: if analysis below
+    # fails partway, we must not re-read (and re-flag) the same rows forever.
+    save_state(state)
 
     if not rows:
         log(AGENT_NAME, "no new outcomes since last check. No action.")
-        save_state(state)
         return
 
     by_pair = defaultdict(list)
@@ -81,7 +83,10 @@ def tick():
                 f"(< {BATCH_SIZE}), deferring analysis to next batch.",
             )
             continue
-        _analyze_batch(pair, pair_rows, a_state)
+        try:
+            _analyze_batch(pair, pair_rows, a_state)
+        except Exception as exc:
+            log(AGENT_NAME, f"{pair[0]} vs {pair[1]}: investigation failed with {exc!r}; will retry next anomaly.")
 
     save_state(state)
 
@@ -135,7 +140,7 @@ def _investigate(label, n, win, loss, push, bust, breaches) -> IncidentReport:
         name: (REPO_ROOT / "casino" / f"{name}.py").read_text()
         for name in ("table", "strategies", "hand")
     }
-    agent = Agent(model=make_model(max_tokens=1500), callback_handler=None)
+    agent = Agent(model=make_model(max_tokens=4096), callback_handler=None)
     result = agent(
         f"A blackjack table monitor flagged an anomaly for strategy pairing {label} over "
         f"the last {n} rounds: win={win:.1%} loss={loss:.1%} push={push:.1%} bust={bust:.1%}. "
