@@ -2,6 +2,27 @@
 
 Blackjack simulator. Run `python -m casino.simulate`.
 
+## Architecture
+
+The simulator lives under `casino/` as small, single-purpose modules. `cards.py` defines
+`Card` and `Deck` (a shuffled, N-deck shoe with `draw()`). `hand.py` defines `Hand`, which
+accumulates `Card`s and knows its own blackjack value (soft-ace reduction), bust state, and
+whether it's a natural blackjack. `strategies.py` defines the decision logic as small
+interchangeable classes: `PlayerStrategy`/`DealerStrategy` base classes with a
+`should_hit(hand, ...)` method, and concrete strategies (`BasicPlayerStrategy` stands at
+17, `AggressivePlayerStrategy` stands at 20 as a deliberately-suboptimal fixture,
+`StandardDealerStrategy` hits to 17) identified by a `name` used in logging.
+
+`table.py` holds the core `Table` class, constructed with a player strategy, a dealer
+strategy, and a deck count. `Table.play_round()` deals two cards each, lets the player hit
+per their strategy until they stand or bust, then does the same for the dealer, and
+resolves the winner by comparing hand values (or bust) into an outcome dict. `monitor.py`
+provides `Monitor`, a thin JSON-lines appender that persists each outcome to
+`outcomes.jsonl`. `simulate.py` wires these together: it builds a `Table` with concrete
+strategies, loops `play_round()` for `num_rounds`, and records each outcome via `Monitor`,
+so a round flows Deck/Hand setup -> player strategy loop -> dealer strategy loop -> outcome
+dict -> `outcomes.jsonl`.
+
 ## Running the Simulator
 
 ```
