@@ -1,12 +1,18 @@
-"""Runs the autonomous agent layer unattended.
+"""Runs the Documentation and Anomaly Detection agents unattended, plus the
+traffic generator they both depend on.
 
 Every tick this:
   1. simulates a batch of blackjack rounds -- standing in for live casino
      traffic -- and appends them to outcomes.jsonl (occasionally routing a
      batch through the deliberately over-aggressive strategy so the anomaly
      agent has real signal to react to),
-  2. lets each of the three agents check its own trigger and act if it's
-     warranted.
+  2. lets the Documentation and Anomaly Detection agents check their own
+     triggers and act if warranted.
+
+The Test Writer Agent is deliberately NOT called from this loop -- its
+trigger is a real git commit, wired through githooks/post-commit, which
+invokes `python3 -m agents.test_writer_agent` directly and detached. Polling
+it here on a timer would defeat the point of a commit-triggered agent.
 
 Nothing here waits for a human. Start it and walk away:
 
@@ -23,7 +29,7 @@ from casino.monitor import Monitor
 from casino.strategies import AggressivePlayerStrategy, BasicPlayerStrategy, StandardDealerStrategy
 from casino.table import Table
 
-from agents import anomaly_agent, doc_agent, test_writer_agent
+from agents import anomaly_agent, doc_agent
 from agents.anomaly_agent import BUST_CEILING, WIN_RATE_RANGE
 from agents.common import MODEL_ID, git_head_sha, log
 
@@ -61,7 +67,6 @@ def main():
         while True:
             try:
                 simulate_batch()
-                test_writer_agent.tick()
                 doc_agent.tick()
                 anomaly_agent.tick()
             except Exception as exc:  # keep the layer alive across a single bad tick

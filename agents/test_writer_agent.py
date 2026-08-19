@@ -1,12 +1,17 @@
 """Test Writer Agent.
 
-Trigger: the repo's HEAD commit. Every tick this checks `git rev-parse HEAD`
-against the last commit it looked at; if nothing has been committed since,
-it does nothing (no scan, no log spam). If HEAD moved -- by a human, or by
-either of the other two agents -- it runs an AST scan of casino/*.py for a
-public class/function whose name never appears (as a whole word) anywhere
-under tests/. That's a coverage gap, still deterministic and free: no LLM
-call is spent just to detect it.
+Trigger: an actual git commit, via githooks/post-commit -- not a timer. That
+hook fires (detached, so `git commit` isn't blocked on an LLM call) for
+every commit in the repo, human or agent-made, and runs this module
+standalone (`python3 -m agents.test_writer_agent`). tick() itself is still
+gated on `git rev-parse HEAD` against the last commit it checked, both as a
+defensive no-op if invoked twice for the same commit and to keep the
+underlying check (an AST scan of casino/*.py for a public class/function
+whose name never appears, as a whole word, anywhere under tests/) cheap and
+explicit about what changed. That scan is deterministic -- no LLM call is
+spent just to detect a gap. When a gap spans multiple modules, only one is
+handled per invocation; on success this agent's own commit re-fires the
+hook, chaining through the rest.
 
 Action: a Strands agent with file_read/file_write/editor/shell tools is
 handed the gap and the module's source and asked to write pytest tests for
@@ -158,3 +163,7 @@ def _handle_gap(module_name, missing, tw_state):
         tw_state["attempts"][module_name] = 0
     else:
         log(AGENT_NAME, f"pytest green but nothing new staged for {module_name} (model made no changes).")
+
+
+if __name__ == "__main__":
+    tick()
