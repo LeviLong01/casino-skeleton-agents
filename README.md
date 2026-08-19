@@ -126,3 +126,44 @@ tracked files while the orchestrator has an in-flight tick -- but a proper lock 
 make that safe instead of just documented. And there's no dependency-update agent --
 `requirements.txt` still pins `requests==2.6.0`, which is unused dead weight from the
 starter repo, worth flagging or removing if this were in scope.
+
+## Agent Layer Modules
+
+`agents/orchestrator.py` is the entry point: it runs the poll loop, generates
+synthetic casino traffic each tick (occasionally through the aggressive
+fixture strategy), calls each agent's `tick()` in turn, and opens the shared
+MLflow run that the whole layer logs into.
+
+`agents/test_writer_agent.py`, `agents/doc_agent.py`, and
+`agents/anomaly_agent.py` each expose a `tick()` checked every poll: the test
+writer diffs `git rev-parse HEAD` against its last-seen commit and, on
+change, AST-scans `casino/*.py` for public symbols absent from `tests/`,
+handing any gap to a tool-using Strands agent before independently rerunning
+pytest; the doc agent snapshots public symbols across two independent
+scopes (`casino/*.py` for `## Architecture`, `agents/*.py` for this section),
+asks an LLM to judge whether a diff is structurally significant, and
+regenerates the relevant section from current source when it is; the anomaly
+agent reads new rows out of `outcomes.jsonl` per strategy pairing, compares
+bust/win rates against fixed calibrated bounds, and on a breach asks an LLM
+to turn the stats plus the relevant `casino/` source into a structured
+incident report under `agents/reports/`.
+
+`agents/common.py` holds everything the three agents share: state
+load/save, activity logging, scoped git commits (`git_commit`), the
+`enforce_scope` guard that reverts out-of-scope file changes, `run_pytest`,
+the AST helpers (`casino_modules`, `agent_layer_modules`, `public_symbols`
+and the snapshot functions built on them), MLflow setup, and the
+`make_model`/`activity_callback` helpers used to construct each Strands
+`Agent`.
+
+`agents/dashboard.py` is a stdlib-only HTTP server that parses
+`agents/activity.log` into classified, per-agent events and serves them,
+plus running summary counts, to a polling web page at `/`.
+
+`agents/evaluate.py` runs `mlflow.genai.evaluate()` over recorded traces:
+built-in `RelevanceToQuery`/`ToolCallEfficiency` judges across all agents,
+plus two code-based scorers specific to anomaly incident reports
+(`fixture_correctly_identified`, `evidence_cites_numbers`) that check
+whether a report correctly recognizes the known aggressive-strategy fixture
+and cites concrete figures as evidence.
+
