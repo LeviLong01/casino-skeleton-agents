@@ -23,4 +23,9 @@ human's work-in-progress. Anomaly thresholds are fixed, not an adaptive baseline
 produced a few false positives on normal sampling variance. Test coverage check is a text
 heuristic, not real coverage instrumentation.
 
-**What I (Levi) would want to improve**: 
+**What I (Levi) would want to improve**: The trigger mechanisms aren't effective. I would want to run the doc drift agent
+in CI as part of a "must pass" before being allowed to merge. Test writer agent was clunky to have work here as Claude wants
+to naturally create a test when making a new class, so that took some hand holding to only create a class but not test. This
+type of agent would be most helpful to legacy code basis and/or recent code bases that weren't fully developed by recent AI tools.
+The Anomaly agent I would want to be a cron job scheduled to periodically run tests on the live agent.
+I want to run a code review skill against this project as well to clean up any issues in Claude's first pass.
