@@ -2,7 +2,8 @@
 
 **Running it:** Set `ANTHROPIC_API_KEY` (a `.env` file works), `pip install -r
 requirements.txt`, then run `python3 -m agents.orchestrator` and leave it running. Live
-dashboard: `python3 -m agents.dashboard` → http://127.0.0.1:8765. Full details in `README.md`.
+dashboard: `python3 -m agents.dashboard` → http://127.0.0.1:8765. MLflow traces:
+`mlflow ui --backend-store-uri sqlite:///mlflow.db`. Full details in `README.md`.
 
 **Agents & triggers:**
 - **Test Writer** — fires on a commit that leaves a `casino/` symbol untested; writes and
