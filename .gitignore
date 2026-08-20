@@ -2,3 +2,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 outcomes.jsonl
+.venv/
+.env
+.DS_Store
+.idea/
+agents/state/
+agents/activity.log
+mlruns/
+mlartifacts/
+mlflow.db*

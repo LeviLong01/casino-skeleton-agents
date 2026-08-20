@@ -16,6 +16,17 @@ class BasicPlayerStrategy(PlayerStrategy):
         return hand.value() < 17
 
 
+class AggressivePlayerStrategy(PlayerStrategy):
+    """Hits until the hand reaches 20 instead of 17. Deliberately
+    over-aggressive: kept in the strategy library as a stress-test fixture
+    so the anomaly monitor has real, occasional signal to react to."""
+
+    name = "aggressive_20"
+
+    def should_hit(self, hand, dealer_upcard):
+        return hand.value() < 20
+
+
 class DealerStrategy:
     """Base class for dealer strategies."""
 
